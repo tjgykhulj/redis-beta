@@ -168,11 +168,17 @@ int anetTcpServer(char *err, int port, char *bindaddr)
         close(s);
         return ANET_ERR;
     }
+    memset(&sa,0,sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
     sa.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (bindaddr) inet_aton(bindaddr, &sa.sin_addr);
-
+    if (bindaddr) {
+        if (inet_aton(bindaddr, &sa.sin_addr) == 0) {
+            anetSetError(err, "Invalid bind address\n");
+            close(s);
+            return ANET_ERR;
+        }
+    }
     if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == -1) {
         anetSetError(err, "bind: %s\n", strerror(errno));
         close(s);
