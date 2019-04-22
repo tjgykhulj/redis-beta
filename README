@@ -15,19 +15,21 @@ is loaded every time the server is restarted.
 This means that it can happen that after a system crash the last modifications
 of the dataset are lost, but it's the price to pay for a lot of speed.
 Redis is the right database for all the applications where it is acceptable
-after a crash that some modification gets lost, but where speed is very
+after a crash that some modifications get lost, but where speed is very
 important.
 
 However you can configure Redis to save the DB after a given number of
 modifications and/or after a given amount of time since the last change
 in the dataset. Saving happens in background so the DB will continue to
-server queries while it is saving the DB dump on disk.
+serve queries while it is saving the DB dump on disk.
 
-=================================
-HOW REDIS DIFFERS FROM MEMCACHED?
-=================================
+Replication is under development in order to make Redis an highly available DB.
 
-Maily in two ways:
+=====================================
+HOW DOES REDIS DIFFER FROM MEMCACHED?
+=====================================
+
+Mainly in two ways:
 
 - Memcached is not persistent, it just holds everything in memory
   without saving since its main goal is to be used as a cache.
@@ -45,7 +47,7 @@ DOES REDIS SUPPORT LOCKING?
 No, the idea is to provide atomic primitives in order to make the programmer
 able to use redis with locking free algorithms. For example imagine you have
 10 computers and 1 redis server. You want to count words in a very large text.
-This large text is splitted among the 10 computers, every computer will process
+This large text is split among the 10 computers, every computer will process
 its part and use Redis's INCR command to atomically increment a counter
 for every occurrence of the word found.
 
@@ -57,20 +59,32 @@ order to implement distributed algorithms.
 MULTIPLE DATABASES SUPPORT
 ==========================
 
-Another synchronization primitive is the support for multiple DBs. By default DB 0 is selected for every new connection, but using the SELECT command it is possible to select a different database. The MOVE operation can move an item from one DB to another atomically. This can be used as a base for locking free algorithms together with the 'RANDOMKEY' or 'POPRANDOMKEY' commands.
+Another synchronization primitive is the support for multiple DBs. By
+default DB 0 is selected for every new connection, but using the SELECT
+command it is possible to select a different database. The MOVE
+operation can move an item from one DB to another atomically. This can
+be used as a base for locking free algorithms together with the
+'RANDOMKEY' or 'POPRANDOMKEY' commands.
 
 ================
 REDIS DATA TYPES
 ================
 
-Redis support the following three data types as values:
+Redis supports the following three data types as values:
 
 - Strings: just any sequence of bytes. Redis strings are binary safe so they
   can not just hold text, but images, compressed data and everything else.
-- Lists: lists of strings, with support for operations like append a new string on head, on tail, list length, obtain a range of elements, truncate the list to a given length, sort the list, and so on.
-- Sets: an unsorted set of strings. It is possible to add or delete elements from a set, to perform set intersection, union, subtraction, and so on.
 
-Values can be Strings, Lists or Sets. Keys can be a subset of strings not containing newlines ("\n") and spaces (" ").
+- Lists: lists of strings, with support for operations like append a
+  new string on head, on tail, list length, obtain a range of elements,
+  truncate the list to a given length, sort the list, and so on.
+
+- Sets: an unsorted set of strings. It is possible to add or delete
+  elements from a set, to perform set intersection, union, subtraction,
+  and so on.
+
+Values can be Strings, Lists or Sets. Keys can be a subset of strings
+not containing newlines ("\n") and spaces (" ").
 
 Note that sometimes strings may hold numeric vaules that must be parsed by
 Redis. An example is the INCR command that atomically increments the number
@@ -81,7 +95,7 @@ Implementation details
 ----------------------
 
 Strings are implemented as dynamically allocated strings of characters.
-Lists are implemented as doubly liked lists with cached length.
+Lists are implemented as doubly linked lists with cached length.
 Sets are implemented using hash tables that use chaining to resolve collisions.
 
 ==============
@@ -94,7 +108,7 @@ Later in this document you can find detailed information about Redis commands,
 the protocol specification, and so on. This kind of documentation is useful
 but... if you are new to Redis it is also BORING! The Redis protocol is designed
 so that is both pretty efficient to be parsed by computers, but simple enough
-to be used by humans just pocking around with the 'telnet' command, so this
+to be used by humans just poking around with the 'telnet' command, so this
 section will show to the reader how to play a bit with Redis to get an initial
 feeling about it, and how it works.
 
@@ -130,12 +144,12 @@ commands are not case sensitive)
 Note that after the first and the second line we sent to the server there
 is a newline at the end. The server expects commands terminated by "\r\n"
 and sequence of bytes terminated by "\r\n". This is a minimal overhead from
-the point of view of both the server and client but allow us to play with
+the point of view of both the server and client but allows us to play with
 Redis with the telnet command easily.
 
 The last line of the chat between server and client is "+OK". This means
 our key was added without problems. Actually SET can never fail but
-the "+OK" sent makes us sure that the server received everything and
+the "+OK" sent lets us know that the server received everything and
 the command was actually executed.
 
 Let's try to get the key content now:
@@ -228,7 +242,7 @@ Commands operating on every value
 
 EXISTS <key>
 Time complexity: O(1)
-    Test of the specified key exists. The command returns
+    Test if the specified key exists. The command returns
     "0" if the key exists, otherwise "1" is returned.
     Note that even keys set with an empty string as value will
     return "1".
@@ -419,7 +433,7 @@ PROTOCOL SPECIFICATION
 ======================
 
 The Redis protocol is a compromise between being easy to parse by a computer
-and being easy to parse by an human. Before to read this section you are
+and being easy to parse by an human. Before reading this section you are
 strongly encouraged to read the "REDIS TUTORIAL" section of this README in order
 to get a first feeling of the protocol playing with it by TELNET.
 

@@ -1058,7 +1058,8 @@ static int saveDb(char *filename) {
                 sds sval = o->ptr;
                 len = htonl(sdslen(sval));
                 if (fwrite(&len,4,1,fp) == 0) goto werr;
-                if (fwrite(sval,sdslen(sval),1,fp) == 0) goto werr;
+                if (sdslen(sval) &&
+                    fwrite(sval,sdslen(sval),1,fp) == 0) goto werr;
             } else if (type == REDIS_LIST) {
                 /* Save a list value */
                 list *list = o->ptr;
@@ -1070,7 +1071,7 @@ static int saveDb(char *filename) {
                     robj *eleobj = listNodeValue(ln);
                     len = htonl(sdslen(eleobj->ptr));
                     if (fwrite(&len,4,1,fp) == 0) goto werr;
-                    if (fwrite(eleobj->ptr,sdslen(eleobj->ptr),1,fp) == 0)
+                    if (sdslen(eleobj->ptr) && fwrite(eleobj->ptr,sdslen(eleobj->ptr),1,fp) == 0)
                         goto werr;
                     ln = ln->next;
                 }
@@ -1099,7 +1100,7 @@ static int saveDb(char *filename) {
 
 werr:
     fclose(fp);
-    redisLog(REDIS_WARNING,"Error saving DB on disk: %s", strerror(errno));
+    redisLog(REDIS_WARNING,"Write error saving DB on disk: %s", strerror(errno));
     if (di) dictReleaseIterator(di);
     return REDIS_ERR;
 }
@@ -1181,7 +1182,7 @@ static int loadDb(char *filename) {
                 val = malloc(vlen);
                 if (!val) oom("Loading DB from file");
             }
-            if (fread(val,vlen,1,fp) == 0) goto eoferr;
+            if (vlen && fread(val,vlen,1,fp) == 0) goto eoferr;
             o = createObject(REDIS_STRING,sdsnewlen(val,vlen));
         } else if (type == REDIS_LIST) {
             /* Read list value */
@@ -1201,7 +1202,7 @@ static int loadDb(char *filename) {
                     val = malloc(vlen);
                     if (!val) oom("Loading DB from file");
                 }
-                if (fread(val,vlen,1,fp) == 0) goto eoferr;
+                if (vlen && fread(val,vlen,1,fp) == 0) goto eoferr;
                 ele = createObject(REDIS_STRING,sdsnewlen(val,vlen));
                 if (!listAddNodeTail((list*)o->ptr,ele))
                     oom("listAddNodeTail");
