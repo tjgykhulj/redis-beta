@@ -165,6 +165,13 @@ static void llenCommand(redisClient *c);
 static void lindexCommand(redisClient *c);
 static void lrangeCommand(redisClient *c);
 static void ltrimCommand(redisClient *c);
+static void typeCommand(redisClient *c);
+static void lsetCommand(redisClient *c);
+static void saddCommand(redisClient *c);
+static void sremCommand(redisClient *c);
+static void sismemberCommand(redisClient *c);
+static void scardCommand(redisClient *c);
+static void sinterCommand(redisClient *c);
 
 /*================================= Globals ================================= */
 
@@ -184,8 +191,15 @@ static struct redisCommand cmdTable[] = {
     {"lpop",lpopCommand,2,REDIS_CMD_INLINE},
     {"llen",llenCommand,2,REDIS_CMD_INLINE},
     {"lindex",lindexCommand,3,REDIS_CMD_INLINE},
+    {"lset",lsetCommand,4,REDIS_CMD_BULK},
     {"lrange",lrangeCommand,4,REDIS_CMD_INLINE},
     {"ltrim",ltrimCommand,4,REDIS_CMD_INLINE},
+    {"sadd",saddCommand,3,REDIS_CMD_BULK},
+    {"srem",sremCommand,3,REDIS_CMD_BULK},
+    {"sismember",sismemberCommand,3,REDIS_CMD_BULK},
+    {"scard",scardCommand,2,REDIS_CMD_INLINE},
+    {"sinter",sinterCommand,-2,REDIS_CMD_INLINE},
+    {"smembers",sinterCommand,2,REDIS_CMD_INLINE},
     {"randomkey",randomkeyCommand,1,REDIS_CMD_INLINE},
     {"select",selectCommand,2,REDIS_CMD_INLINE},
     {"move",moveCommand,3,REDIS_CMD_INLINE},
@@ -199,8 +213,7 @@ static struct redisCommand cmdTable[] = {
     {"bgsave",bgsaveCommand,1,REDIS_CMD_INLINE},
     {"shutdown",shutdownCommand,1,REDIS_CMD_INLINE},
     {"lastsave",lastsaveCommand,1,REDIS_CMD_INLINE},
-    /* lpop, rpop, lindex, llen */
-    /* dirty, lastsave, info */
+    {"type",typeCommand,2,REDIS_CMD_INLINE},
     {"",NULL,0,0}
 };
 
@@ -393,6 +406,28 @@ dictType sdsDictType = {
     sdsDictKeyCompare,         /* key compare */
     sdsDictKeyDestructor,      /* key destructor */
     sdsDictValDestructor,      /* val destructor */
+};
+
+
+static int setDictKeyCompare(void *privdata, const void *key1,
+        const void *key2)
+{
+    const robj *o1 = key1, *o2 = key2;
+    return sdsDictKeyCompare(privdata,o1->ptr,o2->ptr);
+}
+
+static unsigned int setDictHashFunction(const void *key) {
+    const robj *o = key;
+    return dictGenHashFunction(o->ptr, sdslen((sds)o->ptr));
+}
+
+dictType setDictType = {
+    setDictHashFunction,       /* hash function */
+    NULL,                      /* key dup */
+    NULL,                      /* val dup */
+    setDictKeyCompare,         /* key compare */
+    sdsDictValDestructor,      /* key destructor */
+    NULL                       /* val destructor */
 };
 
 /* ========================= Random utility functions ======================= */
@@ -759,7 +794,8 @@ static int processCommand(redisClient *c) {
         addReplySds(c,sdsnew("-ERR unknown command\r\n"));
         resetClient(c);
         return 1;
-    } else if (cmd->arity != c->argc) {
+    } else if ((cmd->arity > 0 && cmd->arity != c->argc) ||
+               (c->argc < -cmd->arity)) {
         addReplySds(c,sdsnew("-ERR wrong number of arguments\r\n"));
         resetClient(c);
         return 1;
@@ -978,6 +1014,12 @@ static robj *createListObject(void) {
     return createObject(REDIS_LIST,l);
 }
 
+static robj *createSetObject(void) {
+    dict *d = dictCreate(&setDictType,NULL);
+    if (!d) oom("dictCreate");
+    return createObject(REDIS_SET,d);
+}
+
 static void freeStringObject(robj *o) {
     sdsfree(o->ptr);
 }
@@ -987,8 +1029,7 @@ static void freeListObject(robj *o) {
 }
 
 static void freeSetObject(robj *o) {
-    /* TODO */
-    o = o;
+    dictRelease((dict*) o->ptr);
 }
 
 static void incrRefCount(robj *o) {
@@ -1029,9 +1070,9 @@ static int saveDb(char *filename) {
     }
     if (fwrite("REDIS0000",9,1,fp) == 0) goto werr;
     for (j = 0; j < server.dbnum; j++) {
-        dict *dict = server.dict[j];
-        if (dictGetHashTableUsed(dict) == 0) continue;
-        di = dictGetIterator(dict);
+        dict *d = server.dict[j];
+        if (dictGetHashTableUsed(d) == 0) continue;
+        di = dictGetIterator(d);
         if (!di) {
             fclose(fp);
             return REDIS_ERR;
@@ -1075,6 +1116,25 @@ static int saveDb(char *filename) {
                         goto werr;
                     ln = ln->next;
                 }
+            } else if (type == REDIS_SET) {
+                /* Save a set value */
+                dict *set = o->ptr;
+                dictIterator *di = dictGetIterator(set);
+                dictEntry *de;
+
+                if (!set) oom("dictGetIteraotr");
+                len = htonl(dictGetHashTableUsed(set));
+                if (fwrite(&len,4,1,fp) == 0) goto werr;
+                while((de = dictNext(di)) != NULL) {
+                    robj *eleobj;
+
+                    eleobj = dictGetEntryKey(de);
+                    len = htonl(sdslen(eleobj->ptr));
+                    if (fwrite(&len,4,1,fp) == 0) goto werr;
+                    if (sdslen(eleobj->ptr) && fwrite(eleobj->ptr,sdslen(eleobj->ptr),1,fp) == 0)
+                        goto werr;
+                }
+                dictReleaseIterator(di);
             } else {
                 assert(0 != 0);
             }
@@ -1100,6 +1160,7 @@ static int saveDb(char *filename) {
 
 werr:
     fclose(fp);
+    unlink(tmpfile);
     redisLog(REDIS_WARNING,"Write error saving DB on disk: %s", strerror(errno));
     if (di) dictReleaseIterator(di);
     return REDIS_ERR;
@@ -1134,7 +1195,7 @@ static int loadDb(char *filename) {
     uint32_t klen,vlen,dbid;
     uint8_t type;
     int retval;
-    dict *dict = server.dict[0];
+    dict *d = server.dict[0];
 
     fp = fopen(filename,"r");
     if (!fp) return REDIS_ERR;
@@ -1158,7 +1219,7 @@ static int loadDb(char *filename) {
                 redisLog(REDIS_WARNING,"FATAL: Data file was created with a Redis server compiled to handle more than %d databases. Exiting\n", server.dbnum);
                 exit(1);
             }
-            dict = server.dict[dbid];
+            d = server.dict[dbid];
             continue;
         }
         /* Read key */
@@ -1184,13 +1245,13 @@ static int loadDb(char *filename) {
             }
             if (vlen && fread(val,vlen,1,fp) == 0) goto eoferr;
             o = createObject(REDIS_STRING,sdsnewlen(val,vlen));
-        } else if (type == REDIS_LIST) {
-            /* Read list value */
+        } else if (type == REDIS_LIST || type == REDIS_SET) {
+            /* Read list/set value */
             uint32_t listlen;
             if (fread(&listlen,4,1,fp) == 0) goto eoferr;
             listlen = ntohl(listlen);
-            o = createListObject();
-            /* Load every single element of the list */
+            o = (type == REDIS_LIST) ? createListObject() : createSetObject();
+            /* Load every single element of the list/set */
             while(listlen--) {
                 robj *ele;
 
@@ -1204,8 +1265,13 @@ static int loadDb(char *filename) {
                 }
                 if (vlen && fread(val,vlen,1,fp) == 0) goto eoferr;
                 ele = createObject(REDIS_STRING,sdsnewlen(val,vlen));
-                if (!listAddNodeTail((list*)o->ptr,ele))
-                    oom("listAddNodeTail");
+                if (type == REDIS_LIST) {
+                    if (!listAddNodeTail((list*)o->ptr,ele))
+                        oom("listAddNodeTail");
+                } else {
+                    if (dictAdd((dict*)o->ptr,ele,NULL) == DICT_ERR)
+                        oom("dictAdd");
+                }
                 /* free the temp buffer if needed */
                 if (val != vbuf) free(val);
                 val = NULL;
@@ -1214,7 +1280,7 @@ static int loadDb(char *filename) {
             assert(0 != 0);
         }
         /* Add the new object in the hash table */
-        retval = dictAdd(dict,sdsnewlen(key,klen),o);
+        retval = dictAdd(d,sdsnewlen(key,klen),o);
         if (retval == DICT_ERR) {
             redisLog(REDIS_WARNING,"Loading DB, duplicated key found! Unrecoverable error, exiting now.");
             exit(1);
@@ -1375,7 +1441,7 @@ static void randomkeyCommand(redisClient *c) {
     if (de == NULL) {
         addReply(c,shared.crlf);
     } else {
-        addReply(c,dictGetEntryVal(de));
+        addReplySds(c,sdsdup(dictGetEntryKey(de)));
         addReply(c,shared.crlf);
     }
 }
@@ -1414,6 +1480,27 @@ static void dbsizeCommand(redisClient *c) {
 static void lastsaveCommand(redisClient *c) {
     addReplySds(c,
         sdscatprintf(sdsempty(),"%lu\r\n",server.lastsave));
+}
+
+static void typeCommand(redisClient *c) {
+    dictEntry *de;
+    char *type;
+    
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        type = "none";
+    } else {
+        robj *o = dictGetEntryVal(de);
+        
+        switch(o->type) {
+        case REDIS_STRING: type = "string"; break;
+        case REDIS_LIST: type = "list"; break;
+        case REDIS_SET: type = "set"; break;
+        default: type = "unknown"; break;
+        }
+    }
+    addReplySds(c,sdsnew(type));
+    addReply(c,shared.crlf);
 }
 
 static void saveCommand(redisClient *c) {
@@ -1627,6 +1714,38 @@ static void lindexCommand(redisClient *c) {
     }
 }
 
+static void lsetCommand(redisClient *c) {
+    dictEntry *de;
+    int index = atoi(c->argv[2]);
+    
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        addReplySds(c,sdsnew("-ERR no such key\r\n"));
+    } else {
+        robj *o = dictGetEntryVal(de);
+        
+        if (o->type != REDIS_LIST) {
+            addReplySds(c,sdsnew("-ERR LSET against key not holding a list value\r\n"));
+        } else {
+            list *list = o->ptr;
+            listNode *ln;
+            
+            ln = listIndex(list, index);
+            if (ln == NULL) {
+                addReplySds(c,sdsnew("-ERR index out of range\r\n"));
+            } else {
+                robj *ele = listNodeValue(ln);
+
+                decrRefCount(ele);
+                listNodeValue(ln) = createObject(REDIS_STRING,c->argv[3]);
+                c->argv[3] = NULL;
+                addReply(c,shared.ok);
+                server.dirty++;
+            }
+        }
+    }
+}
+
 static void popGenericCommand(redisClient *c, int where) {
     dictEntry *de;
     
@@ -1734,7 +1853,8 @@ static void ltrimCommand(redisClient *c) {
         robj *o = dictGetEntryVal(de);
         
         if (o->type != REDIS_LIST) {
-            addReplySds(c, sdsnew("-ERR LTRIM against key not holding a list value"));
+            addReplySds(c,
+                sdsnew("-ERR LTRIM against key not holding a list value"));
         } else {
             list *list = o->ptr;
             listNode *ln;
@@ -1768,8 +1888,177 @@ static void ltrimCommand(redisClient *c) {
                 listDelNode(list,ln);
             }
             addReply(c,shared.ok);
+            server.dirty++;
         }
     }
+}
+
+static void saddCommand(redisClient *c) {
+    dictEntry *de;
+    robj *set, *ele;
+
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        set = createSetObject();
+        dictAdd(c->dict,c->argv[1],set);
+        c->argv[1] = 0;
+    } else {
+        set = dictGetEntryVal(de);
+        if (set->type != REDIS_SET) {
+            addReplySds(c,
+                sdsnew("-ERR SADD against key not holding a set value\r\n"));
+            return;
+        }
+    }
+    ele = createObject(REDIS_STRING, c->argv[2]);
+    if (dictAdd(set->ptr,ele,NULL) == DICT_OK) {
+        server.dirty++;
+    } else {
+        decrRefCount(ele);
+    }
+    c->argv[2] = NULL;
+    addReply(c,shared.ok);
+}
+
+static void sremCommand(redisClient *c) {
+    dictEntry *de;
+
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        addReplySds(c,sdsnew("-ERR no such key\r\n"));
+    } else {
+        robj *set, *ele;
+
+        set = dictGetEntryVal(de);
+        if (set->type != REDIS_SET) {
+            addReplySds(c,
+                sdsnew("-ERR SDEL against key not holding a set value\r\n"));
+            return;
+        }
+        ele = createObject(REDIS_STRING,c->argv[2]);
+        if (dictDelete(set->ptr,ele) == DICT_OK)
+            server.dirty++;
+        ele->ptr = NULL;
+        decrRefCount(ele);
+        addReply(c,shared.ok);
+    }
+}
+
+static void sismemberCommand(redisClient *c) {
+    dictEntry *de;
+
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        addReplySds(c,sdsnew("-1\r\n"));
+    } else {
+        robj *set, *ele;
+
+        set = dictGetEntryVal(de);
+        if (set->type != REDIS_SET) {
+            addReplySds(c,sdsnew("-1\r\n"));
+            return;
+        }
+        ele = createObject(REDIS_STRING,c->argv[2]);
+        if (dictFind(set->ptr,ele))
+            addReply(c,shared.one);
+        else
+            addReply(c,shared.zero);
+        ele->ptr = NULL;
+        decrRefCount(ele);
+    }
+}
+
+static void scardCommand(redisClient *c) {
+    dictEntry *de;
+    dict *s;
+    
+    de = dictFind(c->dict,c->argv[1]);
+    if (de == NULL) {
+        addReply(c,shared.zero);
+        return;
+    } else {
+        robj *o = dictGetEntryVal(de);
+        if (o->type != REDIS_SET) {
+            addReplySds(c,sdsnew("-1\r\n"));
+        } else {
+            s = o->ptr;
+            addReplySds(c,sdscatprintf(sdsempty(),"%d\r\n",
+                dictGetHashTableUsed(s)));
+        }
+    }
+}
+
+static int qsortCompareSetsByCardinality(const void *s1, const void *s2) {
+    dict **d1 = (void*) s1, **d2 = (void*) s2;
+
+    return dictGetHashTableUsed(*d1)-dictGetHashTableUsed(*d2);
+}
+
+static void sinterCommand(redisClient *c) {
+    dict **dv = malloc(sizeof(dict*)*(c->argc-1));
+    dictIterator *di;
+    dictEntry *de;
+    robj *lenobj;
+    int j, cardinality = 0;
+
+    if (!dv) oom("sinterCommand");
+    for (j = 0; j < c->argc-1; j++) {
+        robj *setobj;
+        dictEntry *de;
+        
+        de = dictFind(c->dict,c->argv[j+1]);
+        if (!de) {
+            free(dv);
+            char *err = "No such key";
+            addReplySds(c, sdscatprintf(
+                sdsempty(),"%d\r\n%s\r\n",-((int)strlen(err)),err));
+            return;
+        }
+        setobj = dictGetEntryVal(de);
+        if (setobj->type != REDIS_SET) {
+            free(dv);
+            char *err = "LINTER against key not holding a set value";
+            addReplySds(c, sdscatprintf(
+                sdsempty(),"%d\r\n%s\r\n",-((int)strlen(err)),err));
+            return;
+        }
+        dv[j] = setobj->ptr;
+    }
+    /* Sort sets from the smallest to largest, this will improve our
+     * algorithm's performace */
+    qsort(dv,c->argc-1,sizeof(dict*),qsortCompareSetsByCardinality);
+
+    /* The first thing we should output is the total number of elements...
+     * since this is a multi-bulk write, but at this stage we don't know
+     * the intersection set size, so we use a trick, append an empty object
+     * to the output list and save the pointer to later modify it with the
+     * right length */
+    lenobj = createObject(REDIS_STRING,NULL);
+    addReply(c,lenobj);
+    decrRefCount(lenobj);
+
+    /* Iterate all the elements of the first (smallest) set, and test
+     * the element against all the other sets, if at least one set does
+     * not include the element it is discarded */
+    di = dictGetIterator(dv[0]);
+    if (!di) oom("dictGetIterator");
+
+    while((de = dictNext(di)) != NULL) {
+        robj *ele;
+
+        for (j = 1; j < c->argc-1; j++)
+            if (dictFind(dv[j],dictGetEntryKey(de)) == NULL) break;
+        if (j != c->argc-1)
+            continue; /* at least one set don't contain the member */
+        ele = dictGetEntryKey(de);
+        addReplySds(c,sdscatprintf(sdsempty(),"%d\r\n",sdslen(ele->ptr)));
+        addReply(c,ele);
+        addReply(c,shared.crlf);
+        cardinality++;
+    }
+    lenobj->ptr = sdscatprintf(sdsempty(),"%d\r\n",cardinality);
+    dictReleaseIterator(di);
+    free(dv);
 }
 
 /* =================================== Main! ================================ */

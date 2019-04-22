@@ -260,7 +260,6 @@ proc main {server port} {
         format $res
     } {0}
 
-
     test {MOVE basic usage} {
         redis_set $fd mykey foobar
         redis_move $fd mykey 1
@@ -357,6 +356,66 @@ proc main {server port} {
         redis_lrange $fd mylist 0 -1
     } {99 98 97 96 95}
 
+    test {LSET} {
+        redis_lset $fd mylist 1 foo
+        redis_lset $fd mylist -1 bar
+        redis_lrange $fd mylist 0 -1
+    } {99 foo 97 96 bar}
+
+    test {LSET out of range index} {
+        redis_lset $fd mylist 10 foo
+    } {-ERR*range*}
+
+    test {LSET against non existing key} {
+        redis_lset $fd nosuchkey 10 foo
+    } {-ERR*key*}
+
+    test {LSET against non list value} {
+        redis_set $fd nolist foobar
+        redis_lset $fd nolist 0 foo
+    } {-ERR*value*}
+
+    test {SADD, SCARD, SISMEMBER, SMEMBERS basics} {
+        redis_sadd $fd myset foo
+        redis_sadd $fd myset bar
+        list [redis_scard $fd myset] [redis_sismember $fd myset foo] \
+            [redis_sismember $fd myset bar] [redis_sismember $fd myset bla] \
+            [lsort [redis_smembers $fd myset]]
+    } {2 1 1 0 {bar foo}}
+
+    test {SADD adding the same element multiple times} {
+        redis_sadd $fd myset foo
+        redis_sadd $fd myset foo
+        redis_sadd $fd myset foo
+        redis_scard $fd myset
+    } {2}
+
+    test {SADD against non set} {
+        redis_sadd $fd mylist foo
+    } {-ERR*}
+
+    test {SREM basics} {
+        redis_sadd $fd myset ciao
+        redis_srem $fd myset foo
+        lsort [redis_smembers $fd myset]
+    } {bar ciao}
+
+    test {Mass SADD and SINTER with two sets} {
+        for {set i 0} {$i < 1000} {incr i} {
+            redis_sadd $fd set1 $i
+            redis_sadd $fd set2 [expr $i+995]
+        }
+        lsort [redis_sinter $fd set1 set2]
+    } {995 996 997 998 999}
+
+    test {LINTER against three sets} {
+        redis_sadd $fd set3 999
+        redis_sadd $fd set3 995
+        redis_sadd $fd set3 1000
+        redis_sadd $fd set3 2000
+        lsort [redis_sinter $fd set1 set2 set3]
+    } {995 999}
+
     # Leave the user with a clean DB before to exit
     test {DEL all keys again (DB 0)} {
         foreach key [redis_keys $fd *] {
@@ -374,7 +433,6 @@ proc main {server port} {
         redis_select $fd 0
         format $res
     } {0}
-
 
     puts "\n[expr $::passed+$::failed] tests, $::passed passed, $::failed failed"
     if {$::failed > 0} {
@@ -512,6 +570,11 @@ proc redis_llen {fd key} {
     redis_read_integer $fd
 }
 
+proc redis_scard {fd key} {
+    redis_writenl $fd "scard $key"
+    redis_read_integer $fd
+}
+
 proc redis_lindex {fd key index} {
     redis_writenl $fd "lindex $key $index"
     redis_bulk_read $fd
@@ -545,6 +608,36 @@ proc redis_lpop {fd key} {
 proc redis_rpop {fd key} {
     redis_writenl $fd "rpop $key"
     redis_bulk_read $fd
+}
+
+proc redis_lset {fd key index val} {
+    redis_writenl $fd "lset $key $index [string length $val]\r\n$val"
+    redis_read_retcode $fd
+}
+
+proc redis_sadd {fd key val} {
+    redis_writenl $fd "sadd $key [string length $val]\r\n$val"
+    redis_read_retcode $fd
+}
+
+proc redis_srem {fd key val} {
+    redis_writenl $fd "srem $key [string length $val]\r\n$val"
+    redis_read_retcode $fd
+}
+
+proc redis_sismember {fd key val} {
+    redis_writenl $fd "sismember $key [string length $val]\r\n$val"
+    redis_read_integer $fd
+}
+
+proc redis_sinter {fd args} {
+    redis_writenl $fd "sinter [join $args]\r\n"
+    redis_multi_bulk_read $fd
+}
+
+proc redis_smembers {fd key} {
+    redis_writenl $fd "smembers $key\r\n"
+    redis_multi_bulk_read $fd
 }
 
 if {[llength $argv] == 0} {
