@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/38/trunk/client-libaries/ruby/spec
+END
+redis_spec.rb
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/38/trunk/client-libaries/ruby/spec/redis_spec.rb
+END
+spec_helper.rb
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/25/trunk/client-libaries/ruby/spec/spec_helper.rb
+END

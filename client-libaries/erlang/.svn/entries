@@ -1,0 +1,88 @@
+8
+
+dir
+45
+http://redis.googlecode.com/svn/trunk/client-libaries/erlang
+http://redis.googlecode.com/svn
+
+
+
+2009-03-02T13:17:05.816544Z
+45
+antirez
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+b5cb1b8a-01f7-11de-b556-9305e745af9e
+
+test
+dir
+
+.hgignore
+file
+
+
+
+
+2009-03-02T13:17:22.000000Z
+43bd0c8d8dd0741e7a82babc443218a2
+2009-03-02T13:17:05.816544Z
+45
+antirez
+
+LICENSE
+file
+
+
+
+
+2009-03-02T13:17:22.000000Z
+c84f0cabae2c726b169f925255283e47
+2009-03-02T13:17:05.816544Z
+45
+antirez
+
+include
+dir
+
+.hg_archival.txt
+file
+
+
+
+
+2009-03-02T13:17:22.000000Z
+d0f18ba054d0154854cf84f48b29b5cf
+2009-03-02T13:17:05.816544Z
+45
+antirez
+
+src
+dir
+
+support
+dir
+
+Makefile
+file
+
+
+
+
+2009-03-02T13:17:22.000000Z
+c3e7a5cc4f598d9569e4767ebbce534d
+2009-03-02T13:17:05.816544Z
+45
+antirez
+
