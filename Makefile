@@ -8,9 +8,10 @@ CFLAGS?= -O2 -Wall -W -DSDS_ABORT_ON_OOM
 CCOPT= $(CFLAGS)
 
 OBJ = adlist.o ae.o anet.o dict.o redis.o sds.o picol.o
+BENCHOBJ = ae.o anet.o benchmark.o sds.o adlist.o
 PRGNAME = redis-server
 
-all: redis-server
+all: redis-server redis-benchmark
 
 # Deps (use make dep to generate this)
 picol.o: picol.c picol.h
@@ -29,6 +30,9 @@ redis-server: $(OBJ)
 	@echo "terminal window enter this directory and run 'make test'."
 	@echo ""
 
+redis-benchmark: $(BENCHOBJ)
+	$(CC) -o redis-benchmark $(CCOPT) $(DEBUG) $(BENCHOBJ)
+
 .c.o:
 	$(CC) -c $(CCOPT) $(DEBUG) $(COMPILE_TIME) $<
 
@@ -40,3 +44,6 @@ dep:
 
 test:
 	tclsh test-redis.tcl
+
+bench:
+	./redis-benchmark
