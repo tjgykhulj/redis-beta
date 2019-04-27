@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/52/trunk/client-libraries/ruby/lib
+END
+hash_ring.rb
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/52/trunk/client-libraries/ruby/lib/hash_ring.rb
+END
+redis.rb
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/52/trunk/client-libraries/ruby/lib/redis.rb
+END
+dist_redis.rb
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/52/trunk/client-libraries/ruby/lib/dist_redis.rb
+END

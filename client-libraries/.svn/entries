@@ -1,0 +1,40 @@
+8
+
+dir
+88
+http://redis.googlecode.com/svn/trunk/client-libraries
+http://redis.googlecode.com/svn
+
+
+
+2009-03-07T15:39:31.819604Z
+69
+antirez
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+b5cb1b8a-01f7-11de-b556-9305e745af9e
+
+python
+dir
+
+ruby
+dir
+
+php
+dir
+
+erlang
+dir
+

@@ -1,0 +1,41 @@
+8
+
+dir
+88
+http://redis.googlecode.com/svn/trunk/client-libraries/python
+http://redis.googlecode.com/svn
+
+
+
+2009-03-07T11:02:43.165909Z
+68
+ludo@qix.it
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+b5cb1b8a-01f7-11de-b556-9305e745af9e
+
+redis.py
+file
+
+
+
+
+2009-03-10T22:16:23.000000Z
+eefa841cfbed73e3092228f847ab6848
+2009-03-07T11:02:43.165909Z
+68
+ludo@qix.it
+has-props
+

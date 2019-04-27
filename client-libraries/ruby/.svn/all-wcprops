@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/52/trunk/client-libraries/ruby
+END
+bench.rb
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/52/trunk/client-libraries/ruby/bench.rb
+END
+LICENSE
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/52/trunk/client-libraries/ruby/LICENSE
+END
+Rakefile
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/52/trunk/client-libraries/ruby/Rakefile
+END
+README.rdoc
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/52/trunk/client-libraries/ruby/README.rdoc
+END
+fill.rb
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/52/trunk/client-libraries/ruby/fill.rb
+END

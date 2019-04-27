@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/52/trunk/client-libraries/erlang/test
+END
+erldis_tests.erl
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/52/trunk/client-libraries/erlang/test/erldis_tests.erl
+END
+proto_tests.erl
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/52/trunk/client-libraries/erlang/test/proto_tests.erl
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/52/trunk/client-libraries/erlang/test/Makefile
+END

@@ -1,0 +1,53 @@
+8
+
+dir
+88
+http://redis.googlecode.com/svn/trunk/client-libraries/php
+http://redis.googlecode.com/svn
+
+
+
+2009-03-07T15:39:31.819604Z
+69
+antirez
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+b5cb1b8a-01f7-11de-b556-9305e745af9e
+
+tests.php
+file
+
+
+
+
+2009-03-10T22:16:24.000000Z
+44a9b6c303741e74173f309c0f282de7
+2009-03-07T11:02:15.656196Z
+67
+ludo@qix.it
+
+redis.php
+file
+
+
+
+
+2009-03-10T22:16:24.000000Z
+f3a3e0505c89bf78e237190180b0560e
+2009-03-07T15:39:31.819604Z
+69
+antirez
+has-props
+
